@@ -5,6 +5,8 @@ local M = {}
 BentoConfig = BentoConfig or {}
 M.marks = {}
 
+M.buffer_metrics = {}
+
 function M.get_config()
     return BentoConfig or {}
 end
@@ -233,6 +235,123 @@ local function setup_autocmds()
         end,
         desc = "Enforce maximum buffer limit",
     })
+
+    vim.api.nvim_create_autocmd("BufEnter", {
+        group = augroup,
+        callback = function(args)
+            if is_menu_buffer(args.buf) then
+                return
+            end
+            if vim.bo[args.buf].buftype ~= "" then
+                return
+            end
+            require("bento").record_access(args.buf)
+        end,
+        desc = "Track buffer access for deletion metrics",
+    })
+
+    vim.api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
+        group = augroup,
+        callback = function(args)
+            if is_menu_buffer(args.buf) then
+                return
+            end
+            if vim.bo[args.buf].buftype ~= "" then
+                return
+            end
+            require("bento").record_edit(args.buf)
+        end,
+        desc = "Track buffer edits for deletion metrics",
+    })
+
+    vim.api.nvim_create_autocmd({ "BufDelete", "BufWipeout" }, {
+        group = augroup,
+        callback = function(args)
+            require("bento").cleanup_metrics(args.buf)
+        end,
+        desc = "Clean up buffer metrics on deletion",
+    })
+end
+
+-- Initialize or get metrics for a buffer
+local function get_buffer_metrics(buf_id)
+    if not M.buffer_metrics[buf_id] then
+        M.buffer_metrics[buf_id] = {
+            access_times = {},
+            edit_times = {},
+        }
+    end
+    return M.buffer_metrics[buf_id]
+end
+
+-- Record a buffer access event
+function M.record_access(buf_id)
+    local metrics = get_buffer_metrics(buf_id)
+    table.insert(metrics.access_times, os.time())
+end
+
+-- Record a buffer edit event
+function M.record_edit(buf_id)
+    local metrics = get_buffer_metrics(buf_id)
+    table.insert(metrics.edit_times, os.time())
+end
+
+-- Clean up metrics for deleted buffers
+function M.cleanup_metrics(buf_id)
+    M.buffer_metrics[buf_id] = nil
+end
+
+-- Calculate frecency score for a list of timestamps
+-- Uses a decay-based algorithm where recent events score higher
+-- Formula: sum of (1 / (1 + age_in_hours)) for each event
+local function calculate_frecency(timestamps)
+    if not timestamps or #timestamps == 0 then
+        return 0
+    end
+
+    local now = os.time()
+    local score = 0
+
+    for _, timestamp in ipairs(timestamps) do
+        local age_hours = (now - timestamp) / 3600
+        score = score + (1 / (1 + age_hours))
+    end
+
+    return score
+end
+
+-- Get the metric value for a buffer based on the configured metric type
+local function get_buffer_metric_value(buf_id, metric_type)
+    local metrics = M.buffer_metrics[buf_id]
+
+    if metric_type == "recency_access" then
+        local buf_info = vim.fn.getbufinfo(buf_id)[1]
+        if buf_info then
+            return buf_info.lastused or 0
+        end
+        return 0
+    elseif metric_type == "recency_edit" then
+        if metrics and #metrics.edit_times > 0 then
+            return metrics.edit_times[#metrics.edit_times]
+        end
+        return 0
+    elseif metric_type == "frecency_access" then
+        if metrics then
+            return calculate_frecency(metrics.access_times)
+        end
+        return 0
+    elseif metric_type == "frecency_edit" then
+        if metrics then
+            return calculate_frecency(metrics.edit_times)
+        end
+        return 0
+    end
+
+    local buf_info = vim.fn.getbufinfo(buf_id)[1]
+    if buf_info then
+        return buf_info.lastused or 0
+    end
+    return 0
 end
 
 -- Initialize marks for all valid buffers
@@ -245,8 +364,10 @@ function M.initialize_marks()
     end
 end
 
--- Get least recently used buffer (excluding current buffer and visible buffers)
+-- Get buffer to delete based on configured metric (excluding current and visible buffers)
 function M.get_lru_buffer()
+    local config = M.get_config()
+    local metric_type = config.buffer_deletion_metric or "recency_access"
     local current_buf = vim.api.nvim_get_current_buf()
     local visible_bufs = {}
 
@@ -257,8 +378,8 @@ function M.get_lru_buffer()
         end
     end
 
-    local lru_buf = nil
-    local lru_time = math.huge
+    local candidate_buf = nil
+    local candidate_score = math.huge
 
     for _, buf_id in ipairs(vim.api.nvim_list_bufs()) do
         local buf_name = vim.api.nvim_buf_get_name(buf_id)
@@ -267,18 +388,15 @@ function M.get_lru_buffer()
             and buf_id ~= current_buf
             and not visible_bufs[buf_id]
         then
-            local buf_info = vim.fn.getbufinfo(buf_id)[1]
-            if buf_info then
-                local lastused = buf_info.lastused or 0
-                if lastused < lru_time then
-                    lru_time = lastused
-                    lru_buf = buf_id
-                end
+            local score = get_buffer_metric_value(buf_id, metric_type)
+            if score < candidate_score then
+                candidate_score = score
+                candidate_buf = buf_id
             end
         end
     end
 
-    return lru_buf
+    return candidate_buf
 end
 
 -- Enforce buffer limit by deleting LRU buffer if needed
@@ -319,6 +437,7 @@ function M.setup(config)
         label_padding = 1,
         default_action = "open",
         max_open_buffers = -1,
+        buffer_deletion_metric = "frecency_access", -- "recency_access", "recency_edit", "frecency_access", "frecency_edit"
         minimal_menu = nil, -- nil | "dashed" | "filename" | "full"
 
         highlights = {

@@ -10,12 +10,12 @@ A minimalist, efficient, and extensible buffer manager for Neovim.
 
 ## Features
 
-- **Transparent sidebar** with collapsed (dashes only or completely hidden) and expanded (labels + names) states
+- **Transparent sidebar** with multiple collapsed states (dashes, filenames, full, or hidden) and expanded (labels + names) states
 - **Smart label assignment** based on filenames for quick buffer switching
 - **Last accessed buffer** quick switch (press `;` twice)
 - **Extensible action system** with visual feedback (open, delete, custom actions)
 - **Visual indicators** for current, active, and inactive buffers
-- **Buffer limit enforcement** with LRU deletion (optional)
+- **Buffer limit enforcement** with configurable deletion metrics (optional)
 - **Auto-collapse** on selection and cursor movement
 - **No dependencies**
 
@@ -46,9 +46,13 @@ Works out of the box with defaults. The main keymap is `;`:
 
 ## Visual States
 
-**Collapsed (default):** Shows dashes only, or nothing if `config.show_minimal_menu = false`
-- `──` = Active buffer (visible)
-- ` ─` = Inactive buffer (hidden)
+**Collapsed/Minimal:** Configurable via `minimal_menu` option:
+- `nil` (default): No collapsed menu shown
+- `"dashed"`: Shows dashes only
+  - `──` = Active buffer (visible)
+  - ` ─` = Inactive buffer (hidden)
+- `"filename"`: Shows filenames only (no labels)
+- `"full"`: Shows full menu (filenames + labels) with distinct highlighting
 
 **Expanded:** Shows buffer names + labels (right-aligned)
 - **Bold** = Current buffer
@@ -95,8 +99,9 @@ require("bento").setup({
     dash_char = "─", -- Character for collapsed dashes
     label_padding = 1, -- Padding around labels
     max_open_buffers = -1, -- Max buffers (-1 = unlimited)
+    buffer_deletion_metric = "frecency_access", -- Metric for buffer deletion (see below)
     default_action = "open", -- Action when pressing label directly
-    show_minimal_menu = false, -- Show the dashed collapsed menu
+    minimal_menu = nil, -- Collapsed menu style: nil, "dashed", "filename", or "full"
 
     -- Highlight groups
     highlights = {
@@ -110,6 +115,7 @@ require("bento").setup({
         label_delete = "DiagnosticVirtualTextError", -- Labels in delete action mode
         label_vsplit = "DiagnosticVirtualTextInfo", -- Labels in vertical split mode
         label_split = "DiagnosticVirtualTextInfo", -- Labels in horizontal split mode
+        label_minimal = "Visual", -- Labels in collapsed "full" mode
         window_bg = "BentoNormal", -- Menu window background
     },
 
@@ -129,10 +135,24 @@ require("bento").setup({
 | `dash_char` | string | `"─"` | Character for collapsed state lines |
 | `label_padding` | number | `1` | Padding on left/right of labels |
 | `max_open_buffers` | number | `-1` | Maximum number of buffers to keep open (`-1` = unlimited) |
+| `buffer_deletion_metric` | string | `"frecency_access"` | Metric used to decide which buffer to delete when limit is reached (see below) |
 | `default_action` | string | `"open"` | Default action mode when menu expands |
-| `show_minimal_menu` | boolean | `false` | Whether to show the dashed collapsed menu (`true`) or to show nothing when collapsed (`false`) |
+| `minimal_menu` | string/nil | `nil` | Collapsed menu style: `nil` (hidden), `"dashed"` (dash lines), `"filename"` (names only), `"full"` (names + labels) |
 | `highlights` | table | See below | Highlight groups for all UI elements |
 | `actions` | table | Built-in actions | Action definitions (see Actions section) |
+
+### Buffer Deletion Metrics
+
+When `max_open_buffers` is set to a positive value, bento will automatically delete buffers to stay within the limit. The `buffer_deletion_metric` option controls how buffers are prioritized for deletion:
+
+| Metric | Description |
+|--------|-------------|
+| `"recency_access"` | Delete the buffer that was **accessed** (entered/viewed) least recently. Uses Neovim's built-in `lastused` tracking. |
+| `"recency_edit"` | Delete the buffer that was **edited** least recently. Buffers you haven't modified in a while are deleted first. |
+| `"frecency_access"` | Delete the buffer with the lowest **access frecency**. This is the default. Frecency combines frequency and recency - buffers you access often and recently score higher and are kept. |
+| `"frecency_edit"` | Delete the buffer with the lowest **edit frecency**. Buffers you edit frequently and recently score higher and are kept. |
+
+**Recency** metrics simply look at when the last event occurred. **Frecency** metrics use a decay-based algorithm that considers the entire history of events, giving higher scores to buffers that are both frequently and recently used.
 
 ### Highlights
 
@@ -150,6 +170,7 @@ All highlights are configurable under the `highlights` table:
 | `label_delete` | `"DiagnosticVirtualTextError"` | Labels in delete action mode |
 | `label_vsplit` | `"DiagnosticVirtualTextInfo"` | Labels in vertical split mode |
 | `label_split` | `"DiagnosticVirtualTextInfo"` | Labels in horizontal split mode |
+| `label_minimal` | `"Visual"` | Labels in collapsed "full" mode |
 | `window_bg` | `"BentoNormal"` | Menu window background (transparent by default) |
 
 

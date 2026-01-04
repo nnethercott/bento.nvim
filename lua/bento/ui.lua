@@ -752,7 +752,11 @@ local function render_expanded(is_minimal_full)
         end
     end
 
-    set_selection_keybindings(smart_labels)
+    if is_minimal_full then
+        clear_selection_keymaps()
+    else
+        set_selection_keybindings(smart_labels)
+    end
 end
 
 -- Render the appropriate collapsed view based on `minimal_menu` mode
