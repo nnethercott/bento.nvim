@@ -16,6 +16,7 @@ A minimalist, efficient, and extensible buffer manager for Neovim.
 - **Extensible action system** with visual feedback (open, delete, custom actions)
 - **Visual indicators** for current, active, and inactive buffers
 - **Buffer limit enforcement** with configurable deletion metrics (optional)
+- **Buffer locking** to protect important buffers from automatic deletion (persisted across sessions)
 - **Auto-collapse** on selection and cursor movement
 - **No dependencies**
 
@@ -42,6 +43,7 @@ Works out of the box with defaults. The main keymap is `;`:
 - `<BS>` → Enter delete mode, then select buffer
 - `|` → Enter vertical split mode, then select buffer
 - `_` → Enter horizontal split mode, then select buffer
+- `*` → Toggle lock on selected buffer (protected from auto-deletion)
 - `ESC` → Collapse back to dashes
 
 ## Visual States
@@ -67,6 +69,7 @@ Actions change label colors for visual feedback. Built-in actions:
 - **Delete** (`<BS>`): Deletes selected buffer
 - **Vertical Split** (`|`): Opens selected buffer in a vertical split
 - **Horizontal Split** (`_`): Opens selected buffer in a horizontal split
+- **Lock** (`*`): Toggles lock on selected buffer (locked buffers are protected from automatic deletion)
 
 ### Custom Actions
 
@@ -97,6 +100,7 @@ require("bento").setup({
     offset_x = 0, -- Horizontal offset from position
     offset_y = 0, -- Vertical offset from position
     dash_char = "─", -- Character for collapsed dashes
+    lock_char = "🔒", -- Character shown before locked buffer names
     label_padding = 1, -- Padding around labels
     max_open_buffers = -1, -- Max buffers (-1 = unlimited)
     buffer_deletion_metric = "frecency_access", -- Metric for buffer deletion (see below)
@@ -115,6 +119,7 @@ require("bento").setup({
         label_delete = "DiagnosticVirtualTextError", -- Labels in delete action mode
         label_vsplit = "DiagnosticVirtualTextInfo", -- Labels in vertical split mode
         label_split = "DiagnosticVirtualTextInfo", -- Labels in horizontal split mode
+        label_lock = "DiagnosticVirtualTextWarn", -- Labels in lock action mode
         label_minimal = "Visual", -- Labels in collapsed "full" mode
         window_bg = "BentoNormal", -- Menu window background
     },
@@ -133,6 +138,7 @@ require("bento").setup({
 | `offset_x` | number | `0` | Horizontal offset from position |
 | `offset_y` | number | `0` | Vertical offset from position |
 | `dash_char` | string | `"─"` | Character for collapsed state lines |
+| `lock_char` | string | `"🔒"` | Character displayed before locked buffer names |
 | `label_padding` | number | `1` | Padding on left/right of labels |
 | `max_open_buffers` | number | `-1` | Maximum number of buffers to keep open (`-1` = unlimited) |
 | `buffer_deletion_metric` | string | `"frecency_access"` | Metric used to decide which buffer to delete when limit is reached (see below) |
@@ -170,6 +176,7 @@ All highlights are configurable under the `highlights` table:
 | `label_delete` | `"DiagnosticVirtualTextError"` | Labels in delete action mode |
 | `label_vsplit` | `"DiagnosticVirtualTextInfo"` | Labels in vertical split mode |
 | `label_split` | `"DiagnosticVirtualTextInfo"` | Labels in horizontal split mode |
+| `label_lock` | `"DiagnosticVirtualTextWarn"` | Labels in lock action mode |
 | `label_minimal` | `"Visual"` | Labels in collapsed "full" mode |
 | `window_bg` | `"BentoNormal"` | Menu window background (transparent by default) |
 
@@ -187,6 +194,13 @@ require("bento.ui").refresh_menu()
 -- Actions
 require("bento.ui").set_action_mode("delete")
 require("bento.ui").select_buffer(index)
+
+-- Buffer locking (protects buffers from automatic deletion)
+-- Lock state is persisted across sessions via :mksession
+require("bento").toggle_lock()      -- Toggle lock on current buffer
+require("bento").toggle_lock(bufnr) -- Toggle lock on specific buffer
+require("bento").is_locked()        -- Check if current buffer is locked
+require("bento").is_locked(bufnr)   -- Check if specific buffer is locked
 
 -- Command
 :BentoToggle
@@ -260,12 +274,6 @@ actions = {
 
 ## Acknowledgments & inspiration
 
-- [buffer-sticks.nvim](https://github.com/ahkohd/buffer-sticks.nvim) by [`ahkohd`](https://github.com/ahkohd): this plugin inspired many of the ideas implemented in `bento` (e.g., the dashed menu). You should also check out this plugin, it's very good and it pursues solutions to the same problems, often with very similar or identical approaches. Some key differences:
-    - `bento` aims at being of much lighter weight than `buffer-sticks`. For example, `buffer-sticks` has search functionality, which I consider to be outside of the scope of a buffer manager; if I want to search for a file, I can open my file search engine or explorer (`snacks.picker`, `telescope`, `fzf`, `oil`, `nvim-tree` etc.). Another example is buffer previews, which I consider to be clutter. I will attempt to keep `bento`'s experience reasonably stable in the future, which will revolve around action modes and highlights; I currently consider these mechanics to be sufficient for efficiently managing buffers in the simplest way possible.
-        - `bento`'s menu cannot receive focus, meaning that it cannot be traversed. The whole plugin is a two-key thing: you activate it and then decide where to go (ignoring actions here...).
-    - `bento` makes some of the UI utilities optional (e.g., the rendering of the collapsed menu).
-    - `bento` provides utilities for auto-closing buffers as new ones are opened.
-        - While I have considered --and tried-- to use pinning mechanisms to avoid closing certain buffers, the practical utility of this idea has never been on par with how good it sounds. I find it tedious to manually mark buffers and also would not like to keep in the back of my mind this "meta-task" while programming. I've tried to think of ways to automate this (e.g., using "frecency" metrics), but haven't been convinced by any so far.
-    - `bento` prioritizes single-character labels over matching the beginning of the filename. This is a personal preference (like everything else, really): I rather know that I just have to always press two keys to go where I need to go (i.e., `main` + `label`), than to know in advance what those keys are. Nonetheless, `bento`'s label generation algorithm prioritizes the set of labels that match the most amount of filenames' first character. I may change my mind about this in the future :)
+- [buffer-sticks.nvim](https://github.com/ahkohd/buffer-sticks.nvim) by [`ahkohd`](https://github.com/ahkohd): this plugin inspired some of the ideas implemented in `bento` (e.g., the dashed menu). You should also check out this plugin, it's very good and it pursues solutions to many of the same problems.
 
 - [buffer_manager.nvim](https://github.com/j-morano/buffer_manager.nvim) by [`j-morano`](https://github.com/j-morano): I took architectural ideas from this plugin initially, although at this point the differences may be too large to notice.

@@ -523,6 +523,7 @@ local function render_filename_collapsed()
     local contents = {}
     local padding = config.label_padding or 1
     local padding_str = string.rep(" ", padding)
+    local lock_char = config.lock_char or "🔒"
 
     local all_paths = {}
     for _, mark in ipairs(marks) do
@@ -536,10 +537,14 @@ local function render_filename_collapsed()
     for i, mark in ipairs(marks) do
         local display_name = display_names[mark.filename]
             or utils.get_file_name(mark.filename)
-        local content_width = vim.fn.strwidth(display_name)
+        local is_locked = bento.is_locked(mark.buf_id)
+        local lock_prefix = is_locked and (lock_char .. " ") or ""
+        local content_width = vim.fn.strwidth(lock_prefix .. display_name)
         max_content_width = math.max(max_content_width, content_width)
         table.insert(line_data, {
             display_name = display_name,
+            lock_prefix = lock_prefix,
+            is_locked = is_locked,
             content_width = content_width,
         })
     end
@@ -550,6 +555,7 @@ local function render_filename_collapsed()
         local left_space = max_content_width - data.content_width
         local line = padding_str
             .. string.rep(" ", left_space)
+            .. data.lock_prefix
             .. data.display_name
             .. padding_str
         contents[i] = line
@@ -571,9 +577,10 @@ local function render_filename_collapsed()
         local data = line_data[i]
 
         local left_space = max_content_width - data.content_width
-        local display_name_start = padding + left_space
-        local display_name_end = display_name_start
-            + vim.fn.strwidth(data.display_name)
+        local lock_prefix_bytes = #data.lock_prefix
+        local display_name_bytes = #data.display_name
+        local display_name_start = padding + left_space + lock_prefix_bytes
+        local display_name_end = display_name_start + display_name_bytes
 
         local filename_hl
         if is_modified then
@@ -622,6 +629,7 @@ local function render_expanded(is_minimal_full)
     local contents = {}
     local padding = config.label_padding or 1
     local padding_str = string.rep(" ", padding)
+    local lock_char = config.lock_char or "🔒"
 
     local all_paths = {}
     for _, mark in ipairs(marks) do
@@ -636,8 +644,11 @@ local function render_expanded(is_minimal_full)
         local label = smart_labels[i] or " "
         local display_name = display_names[mark.filename]
             or utils.get_file_name(mark.filename)
-        -- Format: [display_name] [space] [padding][label][padding]
-        local content_width = vim.fn.strwidth(display_name)
+        local is_locked = bento.is_locked(mark.buf_id)
+        local lock_prefix = is_locked and (lock_char .. " ") or ""
+        -- Format: [lock_prefix][display_name] [space] [padding][label][padding]
+        local content_width = vim.fn.strwidth(lock_prefix)
+            + vim.fn.strwidth(display_name)
             + 1
             + padding
             + #label
@@ -646,6 +657,8 @@ local function render_expanded(is_minimal_full)
         table.insert(line_data, {
             label = label,
             display_name = display_name,
+            lock_prefix = lock_prefix,
+            is_locked = is_locked,
             content_width = content_width,
         })
     end
@@ -654,9 +667,10 @@ local function render_expanded(is_minimal_full)
 
     for i, data in ipairs(line_data) do
         local left_space = max_content_width - data.content_width
-        -- Format: [padding][left_space][display_name] [space] [padding][label][padding]
+        -- Format: [padding][left_space][lock_prefix][display_name] [space] [padding][label][padding]
         local line = padding_str
             .. string.rep(" ", left_space)
+            .. data.lock_prefix
             .. data.display_name
             .. " "
             .. padding_str
@@ -683,9 +697,10 @@ local function render_expanded(is_minimal_full)
 
         if label and label ~= " " then
             local left_space = max_content_width - data.content_width
-            local display_name_start = padding + left_space
-            local display_name_end = display_name_start
-                + vim.fn.strwidth(data.display_name)
+            local lock_prefix_bytes = #data.lock_prefix
+            local display_name_bytes = #data.display_name
+            local display_name_start = padding + left_space + lock_prefix_bytes
+            local display_name_end = display_name_start + display_name_bytes
             local label_start = display_name_end + 1 + padding
             local label_end = label_start + #label + padding
 

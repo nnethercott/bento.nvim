@@ -7,8 +7,57 @@ M.marks = {}
 
 M.buffer_metrics = {}
 
+M.locked_buffers = {}
+
 function M.get_config()
     return BentoConfig or {}
+end
+
+-- Save locked buffer paths to a global variable for session storage
+local function save_locked_buffers()
+    local locked_paths = {}
+    for buf_id, _ in pairs(M.locked_buffers) do
+        if vim.api.nvim_buf_is_valid(buf_id) then
+            local path = vim.api.nvim_buf_get_name(buf_id)
+            if path and path ~= "" then
+                table.insert(locked_paths, path)
+            end
+        end
+    end
+    vim.g.BentoLockedBuffers = vim.json.encode(locked_paths)
+end
+
+-- Helper to decode locked paths from global variable
+local function get_locked_paths()
+    local raw = vim.g.BentoLockedBuffers
+    if not raw then
+        return nil
+    end
+    if type(raw) == "string" then
+        local ok, decoded = pcall(vim.json.decode, raw)
+        if ok and type(decoded) == "table" then
+            return decoded
+        end
+        return nil
+    elseif type(raw) == "table" then
+        return raw
+    end
+    return nil
+end
+
+-- Restore locked buffers from global variable
+local function restore_locked_buffers()
+    local locked_paths = get_locked_paths()
+    if not locked_paths then
+        return
+    end
+
+    for _, path in ipairs(locked_paths) do
+        local buf_id = vim.fn.bufnr(path)
+        if buf_id ~= -1 and vim.api.nvim_buf_is_valid(buf_id) then
+            M.locked_buffers[buf_id] = true
+        end
+    end
 end
 
 -- Built-in actions
@@ -58,6 +107,14 @@ M.actions = {
                 vim.cmd("split " .. buf_name)
             end
             require("bento.ui").close_menu()
+        end,
+    },
+    lock = {
+        key = "*",
+        hl = "DiagnosticVirtualTextWarn",
+        action = function(buf_id, _)
+            require("bento").toggle_lock(buf_id)
+            require("bento.ui").refresh_menu()
         end,
     },
 }
@@ -202,20 +259,6 @@ local function setup_autocmds()
         end,
         desc = "Collapse bento menu on cursor move",
     })
-    vim.api.nvim_create_autocmd("WinEnter", {
-        group = augroup,
-        callback = function(args)
-            if is_menu_buffer(args.buf) then
-                return
-            end
-            local win_id = vim.api.nvim_get_current_win()
-            if not win_id or win_id == nil then
-                return
-            end
-            require("bento.ui").set_last_editor_win(win_id)
-        end,
-        desc = "Update current window in bento menu",
-    })
 
     vim.api.nvim_create_autocmd("VimResized", {
         group = augroup,
@@ -271,6 +314,34 @@ local function setup_autocmds()
         end,
         desc = "Clean up buffer metrics on deletion",
     })
+
+    vim.api.nvim_create_autocmd("BufAdd", {
+        group = augroup,
+        callback = function(args)
+            local locked_paths = get_locked_paths()
+            if not locked_paths then
+                return
+            end
+            local buf_path = vim.api.nvim_buf_get_name(args.buf)
+            if buf_path and buf_path ~= "" then
+                for _, path in ipairs(locked_paths) do
+                    if path == buf_path then
+                        require("bento").locked_buffers[args.buf] = true
+                        break
+                    end
+                end
+            end
+        end,
+        desc = "Restore locked buffer state from session",
+    })
+
+    vim.api.nvim_create_autocmd("SessionLoadPost", {
+        group = augroup,
+        callback = function()
+            restore_locked_buffers()
+        end,
+        desc = "Restore locked buffers after session load",
+    })
 end
 
 -- Initialize or get metrics for a buffer
@@ -299,6 +370,29 @@ end
 -- Clean up metrics for deleted buffers
 function M.cleanup_metrics(buf_id)
     M.buffer_metrics[buf_id] = nil
+    if M.locked_buffers[buf_id] then
+        M.locked_buffers[buf_id] = nil
+        save_locked_buffers()
+    end
+end
+
+-- Check if a buffer is locked
+function M.is_locked(buf_id)
+    buf_id = buf_id or vim.api.nvim_get_current_buf()
+    return M.locked_buffers[buf_id] == true
+end
+
+-- Toggle the lock status of a buffer
+-- Locked buffers are protected from automatic deletion
+function M.toggle_lock(buf_id)
+    buf_id = buf_id or vim.api.nvim_get_current_buf()
+    if M.locked_buffers[buf_id] then
+        M.locked_buffers[buf_id] = nil
+    else
+        M.locked_buffers[buf_id] = true
+    end
+    save_locked_buffers()
+    return M.locked_buffers[buf_id] == true
 end
 
 -- Calculate frecency score for a list of timestamps
@@ -364,7 +458,7 @@ function M.initialize_marks()
     end
 end
 
--- Get buffer to delete based on configured metric (excluding current and visible buffers)
+-- Get buffer to delete based on configured metric (excluding current, visible, and locked buffers)
 function M.get_lru_buffer()
     local config = M.get_config()
     local metric_type = config.buffer_deletion_metric or "recency_access"
@@ -387,6 +481,7 @@ function M.get_lru_buffer()
             utils.buffer_is_valid(buf_id, buf_name)
             and buf_id ~= current_buf
             and not visible_bufs[buf_id]
+            and not M.locked_buffers[buf_id]
         then
             local score = get_buffer_metric_value(buf_id, metric_type)
             if score < candidate_score then
@@ -434,6 +529,7 @@ function M.setup(config)
         offset_x = 0,
         offset_y = 0,
         dash_char = "─",
+        lock_char = "🔒",
         label_padding = 1,
         default_action = "open",
         max_open_buffers = -1,
@@ -451,6 +547,7 @@ function M.setup(config)
             label_delete = "DiagnosticVirtualTextError",
             label_vsplit = "DiagnosticVirtualTextInfo",
             label_split = "DiagnosticVirtualTextInfo",
+            label_lock = "DiagnosticVirtualTextWarn",
             label_minimal = "Visual",
             window_bg = "BentoNormal",
         },
@@ -462,6 +559,7 @@ function M.setup(config)
     M.actions.delete.hl = BentoConfig.highlights.label_delete
     M.actions.vsplit.hl = BentoConfig.highlights.label_vsplit
     M.actions.split.hl = BentoConfig.highlights.label_split
+    M.actions.lock.hl = BentoConfig.highlights.label_lock
 
     BentoConfig.actions = M.actions
 
@@ -495,6 +593,8 @@ function M.setup(config)
     setup_autocmds()
 
     M.initialize_marks()
+
+    restore_locked_buffers()
 end
 
 return M
