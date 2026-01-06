@@ -156,7 +156,7 @@ M.actions = {
             else
                 vim.cmd("vsplit " .. buf_name)
             end
-            require("bento.ui").close_menu()
+            require("bento.ui").collapse_menu()
         end,
     },
     split = {
@@ -169,7 +169,7 @@ M.actions = {
             else
                 vim.cmd("split " .. buf_name)
             end
-            require("bento.ui").close_menu()
+            require("bento.ui").collapse_menu()
         end,
     },
     lock = {
