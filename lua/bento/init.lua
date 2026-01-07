@@ -636,7 +636,7 @@ function M.enforce_buffer_limit()
         local display_name = buf_name ~= "" and utils.get_file_name(buf_name)
             or "[No Name]"
         local ok = pcall(vim.api.nvim_buf_delete, lru_buf, { force = false })
-        if ok then
+        if ok and config.buffer_notify_on_delete then
             vim.notify(
                 "Deleted buffer " .. display_name,
                 vim.log.levels.INFO,
@@ -684,6 +684,7 @@ function M.setup(config)
         default_action = "open",
         max_open_buffers = nil, -- nil (unlimited) or number
         buffer_deletion_metric = "frecency_access", -- "recency_access", "recency_edit", "frecency_access", "frecency_edit"
+        buffer_notify_on_delete = true,
         ordering_metric = "access", -- nil (arbitrary) | "access" | "edit"
 
         ui = {
