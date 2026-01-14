@@ -158,6 +158,7 @@ require("bento").setup({
     buffer_notify_on_delete = true, -- Notify when deleting a buffer (false for silent deletion)
     ordering_metric = "access", -- Buffer ordering: nil (arbitrary), "access", or "edit"
     default_action = "open", -- Action when pressing label directly
+    map_last_accessed = false, -- Whether to map a key to the last accessed buffer (besides main_keymap)
 
     ui = {
         mode = "floating", -- "floating" | "tabline"
@@ -214,6 +215,7 @@ require("bento").setup({
 | `buffer_notify_on_delete` | boolean | `true` | Whether to create a notification via `vim.notify` when a buffer is deleted by the plugin |
 | `ordering_metric` | string/nil | `"access"` | Buffer ordering: `nil` (arbitrary), `"access"` (by last access time), or `"edit"` (by last edit time). Most recent first. |
 | `default_action` | string | `"open"` | Default action mode when menu expands |
+| `map_last_accessed` | boolean | `false` | If true, maps a key based on filename to the last accessed buffer (like all other buffers). If false it is only mapped to main_keymap. |
 | `highlights` | table | See below | Highlight groups for all UI elements |
 | `actions` | table | Built-in actions | Action definitions (see Actions section) |
 

@@ -301,7 +301,7 @@ local function assign_smart_labels(buffers, available_keys)
     local last_accessed_buf = get_last_accessed_buffer()
 
     -- Reserve main keymap for last accessed buffer
-    if last_accessed_buf then
+    if not config.map_last_accessed and last_accessed_buf then
         for i, mark in ipairs(buffers) do
             if mark.buf_id == last_accessed_buf then
                 label_assignment[i] = config.main_keymap
@@ -964,6 +964,7 @@ local function render_expanded(is_minimal_full)
     local ns_id = vim.api.nvim_create_namespace("BentoLabel")
     vim.api.nvim_buf_clear_namespace(bento_bufh, ns_id, 0, -1)
 
+    local last_accessed_buf = get_last_accessed_buffer()
     for i, mark in ipairs(visible_marks) do
         local data = line_data[i]
         local label = data.label
@@ -981,8 +982,7 @@ local function render_expanded(is_minimal_full)
             local label_end = label_start + #label + padding
 
             local label_hl
-            local is_previous_buffer = config.main_keymap
-                and label == config.main_keymap
+            local is_previous_buffer = mark.buf_id == last_accessed_buf
             if is_minimal_full then
                 label_hl = config.highlights.label_minimal
             elseif is_previous_buffer then
@@ -1210,6 +1210,7 @@ local function generate_tabline_string(is_minimal)
         return width
     end
 
+    local last_accessed_buf = get_last_accessed_buffer()
     local all_segments = {}
     for i, mark in ipairs(marks) do
         local label = smart_labels[i] or " "
@@ -1221,8 +1222,7 @@ local function generate_tabline_string(is_minimal)
         local is_modified = vim.api.nvim_buf_get_option(mark.buf_id, "modified")
 
         local label_hl
-        local is_previous_buffer = config.main_keymap
-            and label == config.main_keymap
+        local is_previous_buffer = mark.buf_id == last_accessed_buf
         if is_minimal then
             label_hl = config.highlights.label_minimal
         elseif is_previous_buffer then

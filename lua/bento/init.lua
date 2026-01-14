@@ -739,6 +739,7 @@ function M.setup(config)
         buffer_deletion_metric = "frecency_access", -- "recency_access", "recency_edit", "frecency_access", "frecency_edit"
         buffer_notify_on_delete = true,
         ordering_metric = "access", -- nil (arbitrary) | "access" | "edit"
+        map_last_accessed = false,
 
         ui = {
             mode = "floating", -- "floating" | "tabline"
