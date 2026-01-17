@@ -533,6 +533,67 @@ function M.toggle_lock(buf_id)
     return M.locked_buffers[buf_id] == true
 end
 
+--- Close all buffers matching the specified criteria
+--- By default, closes ALL buffers including visible, locked, and current buffers.
+--- Pass `false` for a parameter to exclude those buffers from being closed.
+---
+--- @param opts table|nil Options table with the following fields:
+---   - visible (boolean): If false, do not close visible buffers (default: true)
+---   - locked (boolean): If false, do not close locked buffers (default: true)
+---   - current (boolean): If false, do not close the current buffer (default: true)
+--- @return number Number of buffers closed
+function M.close_all_buffers(opts)
+    opts = opts or {}
+    local close_visible = opts.visible ~= false
+    local close_locked = opts.locked ~= false
+    local close_current = opts.current ~= false
+
+    local current_buf = vim.api.nvim_get_current_buf()
+
+    local visible_bufs = {}
+    for _, tabpage in ipairs(vim.api.nvim_list_tabpages()) do
+        for _, win in ipairs(vim.api.nvim_tabpage_list_wins(tabpage)) do
+            if vim.api.nvim_win_is_valid(win) then
+                local buf = vim.api.nvim_win_get_buf(win)
+                visible_bufs[buf] = true
+            end
+        end
+    end
+
+    local closed_count = 0
+
+    for _, buf_id in ipairs(vim.api.nvim_list_bufs()) do
+        local buf_name = vim.api.nvim_buf_get_name(buf_id)
+        if utils.buffer_is_valid(buf_id, buf_name) then
+            local should_close = true
+
+            if not close_current and buf_id == current_buf then
+                should_close = false
+            end
+            if not close_visible and visible_bufs[buf_id] then
+                should_close = false
+            end
+            if not close_locked and M.locked_buffers[buf_id] then
+                should_close = false
+            end
+
+            if should_close then
+                local ok =
+                    pcall(vim.api.nvim_buf_delete, buf_id, { force = false })
+                if ok then
+                    closed_count = closed_count + 1
+                end
+            end
+        end
+    end
+
+    pcall(function()
+        require("bento.ui").refresh_menu()
+    end)
+
+    return closed_count
+end
+
 --- Calculate frecency score for a list of timestamps
 --- Uses a decay-based algorithm where recent events score higher
 --- Formula: sum of (1 / (1 + age_in_hours)) for each event
@@ -762,7 +823,7 @@ function M.setup(config)
                 offset_x = 0,
                 offset_y = 0,
                 dash_char = "─",
-                border = "none",            -- "rounded" | "single" | "double" | etc. (see :h winborder)
+                border = "none", -- "rounded" | "single" | "double" | etc. (see :h winborder)
                 label_padding = 1,
                 minimal_menu = nil, -- nil | "dashed" | "filename" | "full"
                 max_rendered_buffers = nil, -- nil (no limit) or number

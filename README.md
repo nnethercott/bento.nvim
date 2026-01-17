@@ -310,15 +310,21 @@ require("bento").toggle_lock(bufnr) -- Toggle lock on specific buffer
 require("bento").is_locked()        -- Check if current buffer is locked
 require("bento").is_locked(bufnr)   -- Check if specific buffer is locked
 
--- Note: Buffer metrics (access/edit times) and lock state are automatically
--- persisted across sessions when using Neovim's :mksession and restored on
--- SessionLoadPost. This ensures buffer ordering remains consistent after
--- restarting Neovim with a saved session.
--- Make sure you include "globals" in `sessionoptions`
+-- Close all buffers (with optional exclusions)
+-- By default, closes ALL buffers. Pass false to exclude certain buffers.
+require("bento").close_all_buffers()                                                     -- Close ALL buffers
+require("bento").close_all_buffers({ visible = false })                                  -- Keep visible buffers open
+require("bento").close_all_buffers({ locked = false })                                   -- Keep locked buffers open
+require("bento").close_all_buffers({ current = false })                                  -- Keep current buffer open
+require("bento").close_all_buffers({ visible = false, locked = false, current = false }) -- Keep all protected
 
 -- Command
 :BentoToggle
 ```
+
+## Session support
+Buffer metrics (access/edit times) and lock state are automatically persisted across sessions when using Neovim's :mksession and restored on SessionLoadPost. This ensures buffer ordering remains consistent after restarting Neovim with a saved session. Make sure you include "globals" in `sessionoptions`.
+
 
 ## Examples
 
