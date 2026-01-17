@@ -166,6 +166,7 @@ require("bento").setup({
             offset_x = 0, -- Horizontal offset from position
             offset_y = 0, -- Vertical offset from position
             dash_char = "─", -- Character for collapsed dashes
+            border = "none", -- "rounded" | "single" | "double" | etc. (see :h winborder)
             label_padding = 1, -- Padding around labels
             minimal_menu = nil, -- nil | "dashed" | "filename" | "full"
             max_rendered_buffers = nil, -- nil (no limit) or number for pagination
@@ -231,6 +232,7 @@ require("bento").setup({
 | `offset_x` | number | `0` | Horizontal offset from position |
 | `offset_y` | number | `0` | Vertical offset from position |
 | `dash_char` | string | `"─"` | Character for collapsed state lines |
+| `border` | string | `"none"` | Border style for the floating window: `"rounded"`, `"single"`, `"double"`, etc. (see :h winborder) |
 | `label_padding` | number | `1` | Padding on left/right of labels |
 | `minimal_menu` | string/nil | `nil` | Collapsed menu style: `nil` (hidden), `"dashed"` (dash lines), `"filename"` (names only), `"full"` (names + labels) |
 | `max_rendered_buffers` | number/nil | `nil` | Maximum buffers to display per page. Pagination is also automatically enabled when buffers exceed available screen height. Uses `min(max_rendered_buffers, available_height)` when set. Navigate pages with `[` and `]` keys. A centered indicator (`● ○ ○`) shows current page. |
