@@ -168,14 +168,17 @@ M.actions = {
             -- Before deleting, ensure windows switch to a file buffer (not terminal)
             local affected_windows = {}
             for _, win in ipairs(vim.api.nvim_list_wins()) do
-                if vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win) == buf_id then
+                if
+                    vim.api.nvim_win_is_valid(win)
+                    and vim.api.nvim_win_get_buf(win) == buf_id
+                then
                     local config = vim.api.nvim_win_get_config(win)
                     if not config.relative or config.relative == "" then
                         table.insert(affected_windows, win)
                     end
                 end
             end
-            
+
             -- Find a file buffer to switch to (not terminal)
             if #affected_windows > 0 then
                 local next_buf = nil
@@ -184,18 +187,25 @@ M.actions = {
                         local buftype = vim.bo[b].buftype
                         local buf_name = vim.api.nvim_buf_get_name(b)
                         -- Must be normal file buffer, not terminal
-                        if buftype == "" and buf_name ~= "" and require("bento.utils").buffer_is_valid(b, buf_name) then
+                        if
+                            buftype == ""
+                            and buf_name ~= ""
+                            and require("bento.utils").buffer_is_valid(
+                                b,
+                                buf_name
+                            )
+                        then
                             next_buf = b
                             break
                         end
                     end
                 end
-                
+
                 -- Fallback: create new empty buffer if no file buffer exists
                 if not next_buf then
                     next_buf = vim.api.nvim_create_buf(true, false)
                 end
-                
+
                 -- Switch windows to next buffer before deletion
                 for _, win in ipairs(affected_windows) do
                     if vim.api.nvim_win_is_valid(win) then
@@ -203,9 +213,9 @@ M.actions = {
                     end
                 end
             end
-            
+
             vim.api.nvim_buf_delete(buf_id, { force = false })
-            require("bento.ui").refresh_menu()
+            require("bento.ui").render_expanded()
         end,
     },
     vsplit = {
